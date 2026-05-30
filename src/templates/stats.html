@@ -11,7 +11,7 @@
       <ul class="list-group list-group-flush">
         {% for r in demandes_par_statut %}
           <li class="list-group-item d-flex justify-content-between text-capitalize">
-            {{ r.statut_demande.replace('_', ' ') }} <span class="badge bg-secondary">{{ r.nb }}</span>
+            {{ r.statut_demande.replace('_', ' ') }} <span class="badge" style="background-color:var(--efrei-primary)">{{ r.nb }}</span>
           </li>
         {% endfor %}
       </ul>
@@ -40,7 +40,7 @@
         {% for r in repartition_types %}
           <li class="list-group-item d-flex justify-content-between">
             <span><span class="badge me-2" style="background-color: {{ couleurs.get(r.code, '#6c757d') }};">{{ r.code }}</span>{{ r.libelle }}</span>
-            <span class="badge bg-secondary">{{ r.nb }}</span>
+            <span class="badge" style="background-color:var(--efrei-primary)">{{ r.nb }}</span>
           </li>
         {% endfor %}
       </ul>

@@ -10,7 +10,7 @@
       <div class="card text-center h-100">
         <div class="card-body">
           <h6 class="card-subtitle text-muted">{{ s.type_conge }} — {{ s.annee }}</h6>
-          <p class="display-6 mb-0">{{ s.restant }}</p>
+          <p class="solde-value mb-0">{{ s.restant }}</p>
           <small class="text-muted">jour(s) restant(s) sur {{ s.jours_acquis }}</small>
         </div>
       </div>
@@ -26,11 +26,11 @@
   <a class="btn btn-primary" href="{{ url_for('conge_reserver') }}">+ Réserver un congé</a>
 </div>
 
-<div class="btn-group btn-group-sm mb-3">
-  <a class="btn btn-outline-secondary {{ 'active' if statut == '' }}" href="{{ url_for('mes_conges') }}">Toutes</a>
-  <a class="btn btn-outline-secondary {{ 'active' if statut == 'en_attente' }}" href="{{ url_for('mes_conges', statut='en_attente') }}">En attente</a>
-  <a class="btn btn-outline-secondary {{ 'active' if statut == 'validee' }}" href="{{ url_for('mes_conges', statut='validee') }}">Validées</a>
-  <a class="btn btn-outline-secondary {{ 'active' if statut == 'refusee' }}" href="{{ url_for('mes_conges', statut='refusee') }}">Refusées</a>
+<div class="d-flex gap-2 mb-3">
+  <a class="btn-tag {{ 'active' if statut == '' }}" href="{{ url_for('mes_conges') }}">Toutes</a>
+  <a class="btn-tag {{ 'active' if statut == 'en_attente' }}" href="{{ url_for('mes_conges', statut='en_attente') }}">En attente</a>
+  <a class="btn-tag {{ 'active' if statut == 'validee' }}" href="{{ url_for('mes_conges', statut='validee') }}">Validées</a>
+  <a class="btn-tag {{ 'active' if statut == 'refusee' }}" href="{{ url_for('mes_conges', statut='refusee') }}">Refusées</a>
 </div>
 
 <table class="table table-hover bg-white">
