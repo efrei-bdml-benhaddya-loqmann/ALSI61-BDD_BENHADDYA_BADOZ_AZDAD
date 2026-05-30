@@ -17,8 +17,8 @@ via un sélecteur dans la navbar et mémorisé en session.
 import os
 from datetime import date, timedelta
 
-from flask import (Flask, flash, redirect, render_template, request, session,
-                   url_for)
+from flask import (Flask, abort, flash, g, redirect, render_template, request,
+                   session, url_for)
 
 import db
 
@@ -35,12 +35,14 @@ COULEURS_STATUT = {
 # Utilisateur courant (sélecteur navbar, sans authentification)
 # ---------------------------------------------------------------------------
 def _current_user_id():
-    uid = session.get("current_user_id")
-    if uid is None:
-        premier = db.query("SELECT id_employe FROM Employe ORDER BY id_employe LIMIT 1", one=True)
-        uid = premier["id_employe"] if premier else None
-        session["current_user_id"] = uid
-    return uid
+    if "current_user_id" not in g:
+        uid = session.get("current_user_id")
+        if uid is None:
+            premier = db.query("SELECT id_employe FROM Employe ORDER BY id_employe LIMIT 1", one=True)
+            uid = premier["id_employe"] if premier else None
+            session["current_user_id"] = uid
+        g.current_user_id = uid
+    return g.current_user_id
 
 
 @app.context_processor
@@ -67,6 +69,21 @@ def _types_conge():
     return db.query(
         "SELECT id_statut, libelle, code FROM StatutJour WHERE code IN ('CP','RTT','MAL','FOR') ORDER BY libelle"
     )
+
+
+def _parse_conge_form(form):
+    """Extrait dates + demi-journées selon le mode choisi dans le formulaire."""
+    if form.get("mode") == "half":
+        d = form["date_half"]
+        dj = form["demi_journee"]
+        return d, d, dj, dj
+    return form["date_debut"], form["date_fin"], "journee", "journee"
+
+
+def _nb_jours(demande):
+    if demande["demi_journee_debut"] in ("matin", "apres-midi"):
+        return 0.5
+    return (demande["date_fin"] - demande["date_debut"]).days + 1
 
 
 # ---------------------------------------------------------------------------
@@ -133,15 +150,16 @@ def conge_reserver():
     uid = _current_user_id()
     if request.method == "POST":
         try:
+            date_debut, date_fin, dj_debut, dj_fin = _parse_conge_form(request.form)
             db.execute(
                 """
                 INSERT INTO DemandeConge
-                    (date_debut, date_fin, statut_demande, motif, id_employe, id_statut)
-                VALUES (%s, %s, 'en_attente', %s, %s, %s)
+                    (date_debut, date_fin, demi_journee_debut, demi_journee_fin,
+                     statut_demande, motif, id_employe, id_statut)
+                VALUES (%s, %s, %s, %s, 'en_attente', %s, %s, %s)
                 """,
                 (
-                    request.form["date_debut"],
-                    request.form["date_fin"],
+                    date_debut, date_fin, dj_debut, dj_fin,
                     request.form.get("motif") or None,
                     uid,
                     request.form["id_statut"],
@@ -150,7 +168,8 @@ def conge_reserver():
             flash("Demande de congé envoyée (en attente de validation).", "success")
             return redirect(url_for("mes_conges"))
         except Exception as exc:
-            flash(f"Erreur : {exc}", "danger")
+            app.logger.error(exc)
+            flash("Une erreur est survenue. Veuillez réessayer.", "danger")
 
     return render_template("conge_form.html", demande=None, types=_types_conge())
 
@@ -178,7 +197,7 @@ def conge_detail(id_demande):
         flash("Demande introuvable.", "warning")
         return redirect(url_for("mes_conges"))
 
-    nb_jours = (demande["date_fin"] - demande["date_debut"]).days + 1
+    nb_jours = _nb_jours(demande)
     peut_valider = demande["id_manager"] == _current_user_id()
     return render_template(
         "conge_detail.html", demande=demande, nb_jours=nb_jours, peut_valider=peut_valider
@@ -194,21 +213,25 @@ def conge_modifier(id_demande):
     if not demande:
         flash("Demande introuvable.", "warning")
         return redirect(url_for("mes_conges"))
+    if demande["id_employe"] != _current_user_id():
+        abort(403)
     if demande["statut_demande"] != "en_attente":
         flash("Seules les demandes en attente peuvent être modifiées.", "warning")
         return redirect(url_for("conge_detail", id_demande=id_demande))
 
     if request.method == "POST":
         try:
+            date_debut, date_fin, dj_debut, dj_fin = _parse_conge_form(request.form)
             db.execute(
                 """
                 UPDATE DemandeConge
-                SET date_debut = %s, date_fin = %s, motif = %s, id_statut = %s
+                SET date_debut = %s, date_fin = %s,
+                    demi_journee_debut = %s, demi_journee_fin = %s,
+                    motif = %s, id_statut = %s
                 WHERE id_demande = %s
                 """,
                 (
-                    request.form["date_debut"],
-                    request.form["date_fin"],
+                    date_debut, date_fin, dj_debut, dj_fin,
                     request.form.get("motif") or None,
                     request.form["id_statut"],
                     id_demande,
@@ -217,7 +240,8 @@ def conge_modifier(id_demande):
             flash("Demande modifiée.", "success")
             return redirect(url_for("conge_detail", id_demande=id_demande))
         except Exception as exc:
-            flash(f"Erreur : {exc}", "danger")
+            app.logger.error(exc)
+            flash("Une erreur est survenue. Veuillez réessayer.", "danger")
 
     return render_template("conge_form.html", demande=demande, types=_types_conge())
 
@@ -227,11 +251,18 @@ def conge_modifier(id_demande):
 # ---------------------------------------------------------------------------
 @app.route("/conges/<int:id_demande>/annuler", methods=["POST"])
 def conge_annuler(id_demande):
+    demande = db.query("SELECT * FROM DemandeConge WHERE id_demande = %s", (id_demande,), one=True)
+    if not demande:
+        flash("Demande introuvable.", "warning")
+        return redirect(url_for("mes_conges"))
+    if demande["id_employe"] != _current_user_id():
+        abort(403)
     try:
         db.execute("DELETE FROM DemandeConge WHERE id_demande = %s", (id_demande,))
         flash("Demande annulée.", "success")
     except Exception as exc:
-        flash(f"Erreur : {exc}", "danger")
+        app.logger.error(exc)
+        flash("Une erreur est survenue. Veuillez réessayer.", "danger")
     return redirect(url_for("mes_conges"))
 
 
@@ -255,7 +286,7 @@ def conge_valider(id_demande):
         flash("Demande introuvable.", "warning")
         return redirect(url_for("mes_conges"))
 
-    nb_jours = (demande["date_fin"] - demande["date_debut"]).days + 1
+    nb_jours = _nb_jours(demande)
     try:
         # Si le type décompte sur le solde (CP/RTT), on incrémente jours_pris.
         # La contrainte CHECK ck_solde_positif rejette un dépassement de solde.
@@ -282,7 +313,8 @@ def conge_valider(id_demande):
         )
         flash(f"Demande validée ({nb_jours} jour(s)).", "success")
     except Exception as exc:
-        flash(f"Validation refusée par la base : {exc}", "danger")
+        app.logger.error(exc)
+        flash("Solde insuffisant ou contrainte violée — validation refusée.", "danger")
     return redirect(url_for("conge_detail", id_demande=id_demande))
 
 
@@ -303,7 +335,8 @@ def conge_refuser(id_demande):
         )
         flash("Demande refusée.", "info")
     except Exception as exc:
-        flash(f"Erreur : {exc}", "danger")
+        app.logger.error(exc)
+        flash("Une erreur est survenue. Veuillez réessayer.", "danger")
     return redirect(url_for("conge_detail", id_demande=id_demande))
 
 
@@ -389,4 +422,4 @@ def stats():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=os.getenv("FLASK_DEBUG", "0") == "1", port=5000)

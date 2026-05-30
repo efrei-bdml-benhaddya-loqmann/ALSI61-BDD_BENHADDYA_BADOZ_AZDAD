@@ -322,15 +322,44 @@ Les règles métier ci-dessous ont servi de base à la conception du MCD. Elles 
 
 ## 8. Architecture de l'application
 
-*[Schéma/description : Flask (routes) ↔ couche d'accès `db.py` ↔ MySQL ↔ templates Jinja2/Bootstrap. Expliquer le choix d'une interface web plutôt que console.]*
+L'application suit une architecture en trois couches :
+
+- **Routage (app.py)** : dix routes [Flask](https://flask.palletsprojects.com/en/stable/quickstart/) couvrent toutes les opérations CRUD sur `DemandeConge`, plus deux vues de consultation (calendrier, statistiques). Chaque route délègue les accès base à `db.py` et renvoie un template [Jinja2](https://jinja.palletsprojects.com/en/stable/templates/).
+- **Accès données (db.py)** : deux helpers (`query()` pour les SELECT, `execute()` pour les INSERT/UPDATE/DELETE) encapsulent la connexion MySQL. Les requêtes sont systématiquement paramétrées — aucune concaténation de chaîne SQL — ce qui élimine le risque d'injection SQL.
+- **Présentation (templates/)** : templates Jinja2 + Bootstrap 5 partageant un layout commun (`base.html`). La navbar injecte automatiquement l'utilisateur courant via un [`context_processor`](https://flask.palletsprojects.com/en/stable/templating/#context-processors).
+
+**Choix d'une interface web plutôt que console.** Flask permet de produire une interface proche d'un véritable outil RH, de tester le CRUD visuellement, et de démontrer l'intégration SQL/Python dans un contexte réaliste. Les huit opérations demandées par l'énoncé existent toutes sous forme de routes HTTP.
 
 ## 9. Connexion à la base de données
 
-*[Décrire `db.py` : paramètres via `.env`, helpers de requête, gestion des erreurs.]*
+`db.py` centralise la connexion à MySQL via [mysql-connector-python](https://dev.mysql.com/doc/connector-python/en/connector-python-example-connecting.html). Les paramètres (hôte, port, base, identifiants) sont lus depuis un fichier `.env` par [python-dotenv](https://pypi.org/project/python-dotenv/), ce qui évite de versionner les credentials.
 
 ## 10. Fonctionnalités
 
-*[Pour chaque fonctionnalité de l'énoncé, indiquer la route correspondante, une capture d'écran et une courte explication : réservation (ajout), « Mes demandes » (liste + filtre/recherche par statut), détail + données associées, modification, annulation/suppression, validation/refus par le manager, calendrier équipe, statistiques (classement/agrégats).]*
+L'entité principale du CRUD est `DemandeConge`. Les huit fonctionnalités de l'énoncé sont couvertes :
+
+| # | Fonctionnalité | Route | Opération SQL |
+|---|---|---|---|
+| 1 | Lister mes demandes + filtre par statut | `GET /` | SELECT + clause WHERE optionnelle |
+| 2 | Réserver un congé (ajouter) | `GET/POST /reserver` | INSERT |
+| 3 | Voir le détail + données associées | `GET /conges/<id>` | SELECT avec JOINs |
+| 4 | Modifier une demande | `GET/POST /conges/<id>/modifier` | UPDATE |
+| 5 | Annuler / supprimer | `POST /conges/<id>/annuler` | DELETE |
+| 6 | Valider (manager) — décompte solde | `POST /conges/<id>/valider` | UPDATE + UPDATE SoldeConge |
+| 7 | Refuser (manager) | `POST /conges/<id>/refuser` | UPDATE |
+| 8 | Calendrier équipe + statistiques | `GET /calendrier`, `GET /stats` | SELECT avec agrégats |
+
+**Gestion des demi-journées.** Le schéma `DemandeConge` possède deux colonnes `demi_journee_debut` et `demi_journee_fin` (ENUM `matin` / `apres-midi` / `journee`). Le formulaire expose un sélecteur radio *Journée(s) complète(s)* / *Demi-journée* : en mode journée, les deux colonnes valent `journee` ; en mode demi-journée, `date_debut = date_fin` et les deux colonnes prennent la valeur choisie (`matin` ou `apres-midi`). Le décompte du solde utilise 0,5 jour pour une demi-journée au lieu de 1.
+
+**Corrections de qualité appliquées en cours de développement :**
+
+**Vérification d'appartenance (IDOR).** Les routes `conge_modifier` et `conge_annuler` comparent désormais `demande["id_employe"]` avec `_current_user_id()` et appellent `abort(403)` en cas de discordance. Sans ce contrôle, un utilisateur pouvait modifier ou supprimer la demande de n'importe qui en devinant l'entier `id_demande` dans l'URL — faille classique de type *Insecure Direct Object Reference*. Dans `conge_annuler`, le SELECT préalable a également été ajouté (la route supprimait directement sans même charger l'enregistrement).
+
+**Mode debug contrôlé par variable d'environnement.** `app.run(debug=True)` était codé en dur. Remplacé par `debug=os.getenv("FLASK_DEBUG", "0") == "1"` : le mode debug est désactivé par défaut et ne s'active qu'en posant `FLASK_DEBUG=1` dans `.env`. En mode debug actif, Werkzeug expose une console Python interactive dans le navigateur, permettant l'exécution de code arbitraire.
+
+**Masquage des erreurs base.** Les blocs `except` flashaient `str(exc)` directement vers le template, exposant noms de tables et de contraintes MySQL. Désormais l'exception est loggée côté serveur (`app.logger.error(exc)`) et le template reçoit un message générique. Pour `conge_valider`, le message reste domaine-métier : *"Solde insuffisant ou contrainte violée — validation refusée."*
+
+**Cache de l'utilisateur courant dans `flask.g`.** `_current_user_id()` était appelé plusieurs fois par requête (via `context_processor` + vues individuelles), provoquant des accès session/base redondants. La valeur est stockée dans `g.current_user_id` dès le premier appel et réutilisée pour le reste du cycle de vie de la requête, conformément au [pattern Flask standard](https://flask.palletsprojects.com/en/stable/appcontext/#storing-data).
 
 ---
 ---

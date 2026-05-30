@@ -13,7 +13,15 @@
       <dt class="col-sm-3">Demandeur</dt><dd class="col-sm-9">{{ demande.demandeur }}</dd>
       <dt class="col-sm-3">Type</dt><dd class="col-sm-9">{{ demande.type_conge }}</dd>
       <dt class="col-sm-3">Période</dt>
-      <dd class="col-sm-9">du {{ demande.date_debut.strftime('%d/%m/%Y') }} au {{ demande.date_fin.strftime('%d/%m/%Y') }} ({{ nb_jours }} jour(s))</dd>
+      <dd class="col-sm-9">
+        {% if demande.demi_journee_debut != 'journee' %}
+          {{ demande.date_debut.strftime('%d/%m/%Y') }} —
+          {{ 'Matin' if demande.demi_journee_debut == 'matin' else 'Après-midi' }}
+          (0,5 jour)
+        {% else %}
+          du {{ demande.date_debut.strftime('%d/%m/%Y') }} au {{ demande.date_fin.strftime('%d/%m/%Y') }} ({{ nb_jours }} jour(s))
+        {% endif %}
+      </dd>
       <dt class="col-sm-3">Motif</dt><dd class="col-sm-9">{{ demande.motif or '—' }}</dd>
       <dt class="col-sm-3">Statut</dt>
       <dd class="col-sm-9">

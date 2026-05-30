@@ -4,6 +4,8 @@
 {% block content %}
 <h1 class="h3 mb-4">{{ 'Modifier ma demande' if demande else 'Réserver un congé' }}</h1>
 
+{% set mode_init = 'half' if (demande and demande.demi_journee_debut != 'journee') else 'full' %}
+
 <form method="post" class="row g-3" style="max-width: 560px;">
   <div class="col-12">
     <label class="form-label">Type de congé</label>
@@ -16,16 +18,58 @@
       {% endfor %}
     </select>
   </div>
-  <div class="col-md-6">
-    <label class="form-label">Date de début</label>
-    <input type="date" name="date_debut" class="form-control" required
-           value="{{ demande.date_debut.isoformat() if demande else '' }}">
+
+  <div class="col-12">
+    <label class="form-label">Durée</label>
+    <div class="d-flex gap-4">
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="mode" id="mode_full" value="full"
+               {% if mode_init == 'full' %}checked{% endif %}>
+        <label class="form-check-label" for="mode_full">Journée(s) complète(s)</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="mode" id="mode_half" value="half"
+               {% if mode_init == 'half' %}checked{% endif %}>
+        <label class="form-check-label" for="mode_half">Demi-journée</label>
+      </div>
+    </div>
   </div>
-  <div class="col-md-6">
-    <label class="form-label">Date de fin</label>
-    <input type="date" name="date_fin" class="form-control" required
-           value="{{ demande.date_fin.isoformat() if demande else '' }}">
+
+  <div id="fields_full" class="col-12 {% if mode_init == 'half' %}d-none{% endif %}">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Date de début</label>
+        <input type="date" name="date_debut" class="form-control"
+               {% if mode_init == 'full' %}required{% endif %}
+               value="{{ demande.date_debut.isoformat() if demande else '' }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Date de fin</label>
+        <input type="date" name="date_fin" class="form-control"
+               {% if mode_init == 'full' %}required{% endif %}
+               value="{{ demande.date_fin.isoformat() if demande else '' }}">
+      </div>
+    </div>
   </div>
+
+  <div id="fields_half" class="col-12 {% if mode_init == 'full' %}d-none{% endif %}">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Date</label>
+        <input type="date" name="date_half" class="form-control"
+               {% if mode_init == 'half' %}required{% endif %}
+               value="{{ demande.date_debut.isoformat() if (demande and mode_init == 'half') else '' }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Moment</label>
+        <select name="demi_journee" class="form-select">
+          <option value="matin"      {% if demande and demande.demi_journee_debut == 'matin' %}selected{% endif %}>Matin</option>
+          <option value="apres-midi" {% if demande and demande.demi_journee_debut == 'apres-midi' %}selected{% endif %}>Après-midi</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
   <div class="col-12">
     <label class="form-label">Motif (optionnel)</label>
     <textarea name="motif" class="form-control" rows="2">{{ demande.motif if demande and demande.motif else '' }}</textarea>
@@ -35,5 +79,17 @@
     <a class="btn btn-link" href="{{ url_for('mes_conges') }}">Annuler</a>
   </div>
 </form>
-<p class="text-muted small mt-3">La date de fin doit être ≥ à la date de début (contrainte vérifiée par la base).</p>
+
+<script>
+  document.querySelectorAll('input[name="mode"]').forEach(function(r) {
+    r.addEventListener('change', function() {
+      var isFull = this.value === 'full';
+      document.getElementById('fields_full').classList.toggle('d-none', !isFull);
+      document.getElementById('fields_half').classList.toggle('d-none', isFull);
+      document.querySelector('[name="date_debut"]').required = isFull;
+      document.querySelector('[name="date_fin"]').required = isFull;
+      document.querySelector('[name="date_half"]').required = !isFull;
+    });
+  });
+</script>
 {% endblock %}
