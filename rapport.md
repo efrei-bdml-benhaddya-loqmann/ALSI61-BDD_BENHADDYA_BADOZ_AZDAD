@@ -69,7 +69,7 @@ Le domaine retenu compte **six entités distinctes** et inclut une **association
 
 ### 2.1 Choix du domaine
 
-Nous avons choisi le domaine de la **gestion des congés et du planning d'entreprise**, un domaine que nous côtoyons dans le cadre de notre alternance et qui est suffisamment riche pour mobiliser tous les concepts du cours.
+Nous avons choisi le domaine de la **gestion des congés et du planning d'entreprise**, un domaine que nous côtoyons dans le cadre de notre alternance et qui est suffisamment riche pour mobiliser tous les concepts du cours. C'est pour cela que nous l'avons nommé **MyEfrei Congés**.
 
 L'entreprise est découpée en **services** (Informatique, RH, etc.), chacun regroupant plusieurs **employés**. Chaque employé peut avoir un **manager** (lui-même employé), ce qui crée une hiérarchie. Un employé pose des **demandes de congé** sur une plage de dates ; ces demandes sont validées ou refusées par son manager. Le planning quotidien de chaque employé est matérialisé par des **entrées de planning**, qui indiquent, pour un jour (ou une demi-journée) donné, le **statut** de l'employé : congé payé, RTT, télétravail, présence au bureau, maladie ou formation. Enfin, chaque employé dispose d'un **solde de congés** par type et par année, mis à jour à chaque validation.
 
@@ -305,21 +305,33 @@ Deux triggers garantissent la cohérence de `SoldeConge` quelle que soit la voie
 
 # Partie III — Application Flask
 
-> **Rédacteur : _______________________**
+> **Rédacteur : Benhaddya Loqmann**
 > *Langage : Python / Flask. Application web connectée à MySQL.*
 
 <!-- ============================================================
-  À COMPLÉTER — Critères de l'énoncé à couvrir IMPÉRATIVEMENT :
-  [ ] Architecture de l'application + connexion à MySQL
-  [ ] Fonctionnalités du menu :
-      [ ] Ajouter un enregistrement
-      [ ] Lister tous les enregistrements
-      [ ] Rechercher par un critère
-      [ ] Modifier un enregistrement
-      [ ] Supprimer un enregistrement
-      [ ] Afficher un classement / une statistique globale
-      [ ] Rechercher un élément par mot-clé
-      [ ] Afficher le détail d'un enregistrement + ses données associées
+  ÉTAT DES CRITÈRES (vérifié sur le code au 2026-05-31) :
+  [x] Architecture de l'application + connexion à MySQL
+      -> src/db.py (mysql.connector + python-dotenv/.env), app Flask 3 couches
+         (routage app.py / accès données db.py / présentation templates)
+  [x] Fonctionnalités du menu :
+      [x] Ajouter un enregistrement
+          -> /reserver POST (INSERT INTO DemandeConge)
+      [x] Lister tous les enregistrements
+          -> / (mes_conges) : SELECT + JOIN StatutJour, liste les demandes
+      [x] Rechercher par un critère
+          -> / filtre ?statut= (WHERE dc.statut_demande = %s, en_attente/validee/refusee)
+      [x] Modifier un enregistrement
+          -> /conges/<id>/modifier (UPDATE DemandeConge, si en_attente)
+      [x] Supprimer un enregistrement
+          -> /conges/<id>/annuler POST (DELETE FROM DemandeConge)
+      [x] Afficher un classement / une statistique globale
+          -> /stats : COUNT + GROUP BY (par statut, top 5 demandeurs, répartition par type)
+      [x] Rechercher un élément par mot-clé 
+          ->  recherche LIKE / plein texte dans app.py.
+      [x] Afficher le détail d'un enregistrement + ses données associées
+          -> /conges/<id> (conge_detail) : SELECT dc.* + JOIN Employe (demandeur,
+             manager, valideur) + StatutJour ; template src/templates/conge_detail.html
+             présent. Données associées affichées (type, demandeur, valideur, nb jours).
   NB : l'énoncé demandait une interface console ; nous avons fait le choix
        d'une interface WEB (Flask + Jinja2 + Bootstrap), plus riche. À justifier.
   Fichiers de référence du dépôt : src/app.py, src/db.py (connexion),

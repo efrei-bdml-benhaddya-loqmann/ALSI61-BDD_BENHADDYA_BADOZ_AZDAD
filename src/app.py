@@ -93,6 +93,7 @@ def _nb_jours(demande):
 def mes_conges():
     uid = _current_user_id()
     statut = request.args.get("statut", "")
+    q = request.args.get("q", "").strip()
 
     sql = """
         SELECT dc.id_demande, dc.date_debut, dc.date_fin, dc.statut_demande,
@@ -105,6 +106,11 @@ def mes_conges():
     if statut in ("en_attente", "validee", "refusee"):
         sql += " AND dc.statut_demande = %s"
         params.append(statut)
+    if q:
+        # Recherche par mot-clé : motif de la demande, libellé ou code du type de congé
+        sql += " AND (dc.motif LIKE %s OR sj.libelle LIKE %s OR sj.code LIKE %s)"
+        like = f"%{q}%"
+        params.extend([like, like, like])
     sql += " ORDER BY dc.date_soumission DESC"
     demandes = db.query(sql, params)
 
@@ -138,7 +144,7 @@ def mes_conges():
 
     return render_template(
         "mes_conges.html", demandes=demandes, soldes=soldes,
-        a_valider=a_valider, statut=statut,
+        a_valider=a_valider, statut=statut, q=q,
     )
 
 

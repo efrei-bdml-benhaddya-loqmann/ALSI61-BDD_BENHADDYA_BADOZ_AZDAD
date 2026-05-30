@@ -26,11 +26,21 @@
   <a class="btn btn-primary" href="{{ url_for('conge_reserver') }}">+ Réserver un congé</a>
 </div>
 
-<div class="d-flex gap-2 mb-3">
-  <a class="btn-tag {{ 'active' if statut == '' }}" href="{{ url_for('mes_conges') }}">Toutes</a>
-  <a class="btn-tag {{ 'active' if statut == 'en_attente' }}" href="{{ url_for('mes_conges', statut='en_attente') }}">En attente</a>
-  <a class="btn-tag {{ 'active' if statut == 'validee' }}" href="{{ url_for('mes_conges', statut='validee') }}">Validées</a>
-  <a class="btn-tag {{ 'active' if statut == 'refusee' }}" href="{{ url_for('mes_conges', statut='refusee') }}">Refusées</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div class="d-flex gap-2">
+    <a class="btn-tag {{ 'active' if statut == '' }}" href="{{ url_for('mes_conges', q=q or None) }}">Toutes</a>
+    <a class="btn-tag {{ 'active' if statut == 'en_attente' }}" href="{{ url_for('mes_conges', statut='en_attente', q=q or None) }}">En attente</a>
+    <a class="btn-tag {{ 'active' if statut == 'validee' }}" href="{{ url_for('mes_conges', statut='validee', q=q or None) }}">Validées</a>
+    <a class="btn-tag {{ 'active' if statut == 'refusee' }}" href="{{ url_for('mes_conges', statut='refusee', q=q or None) }}">Refusées</a>
+  </div>
+
+  <form class="d-flex gap-2" method="get" action="{{ url_for('mes_conges') }}" role="search">
+    {% if statut %}<input type="hidden" name="statut" value="{{ statut }}">{% endif %}
+    <input type="search" name="q" class="form-control form-control-sm" style="width:14rem"
+           placeholder="Rechercher (motif, type…)" value="{{ q }}">
+    <button class="btn btn-sm btn-outline-primary" type="submit">Rechercher</button>
+    {% if q %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('mes_conges', statut=statut or None) }}">Effacer</a>{% endif %}
+  </form>
 </div>
 
 <table class="table table-hover bg-white">
@@ -54,7 +64,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="text-muted">Aucune demande{% if statut %} ({{ statut }}){% endif %}.</td></tr>
+      <tr><td colspan="6" class="text-muted">Aucune demande{% if statut %} ({{ statut }}){% endif %}{% if q %} pour « {{ q }} »{% endif %}.</td></tr>
     {% endfor %}
   </tbody>
 </table>
