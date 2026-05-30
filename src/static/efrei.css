@@ -15,7 +15,7 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Topbar ── */
+
 .navbar-efrei { background-color: var(--efrei-primary) !important; }
 
 .navbar-efrei .navbar-brand {
@@ -57,7 +57,7 @@ body {
   border: none;
 }
 
-/* ── Buttons ── */
+
 .btn-primary {
   background-color: var(--efrei-primary) !important;
   border-color:     var(--efrei-primary) !important;
@@ -88,7 +88,7 @@ body {
   color: #fff !important;
 }
 
-/* Filter tag buttons */
+
 .btn-tag {
   background-color: var(--bg-muted);
   color: var(--efrei-primary);
@@ -106,7 +106,7 @@ body {
   color: #fff;
 }
 
-/* ── Cards ── */
+
 .card {
   border: 1px solid var(--border) !important;
   border-radius: 12px !important;
@@ -121,7 +121,7 @@ body {
   border-radius: 12px 12px 0 0 !important;
 }
 
-/* ── Tables ── */
+
 .table { border-color: var(--border); }
 .table-light th, thead.table-light th {
   background-color: var(--bg-muted) !important;
@@ -132,17 +132,17 @@ body {
 .table-hover tbody tr:hover { background-color: rgba(0,40,85,.035) !important; }
 .table.bg-white { border-radius: 12px; overflow: hidden; }
 
-/* ── Typography ── */
+
 h1, h2, h3, h4 { color: var(--text-primary); font-weight: 700; }
 .text-muted { color: var(--text-secondary) !important; }
 
-/* ── Form focus ── */
+
 .form-control:focus, .form-select:focus {
   border-color: var(--efrei-primary);
   box-shadow: 0 0 0 0.2rem rgba(0,40,85,.15);
 }
 
-/* ── Solde number ── */
+
 .solde-value {
   font-size: 2.4rem;
   font-weight: 700;
@@ -150,7 +150,7 @@ h1, h2, h3, h4 { color: var(--text-primary); font-weight: 700; }
   line-height: 1;
 }
 
-/* ── Bootstrap color overrides ── */
+
 .bg-primary           { background-color: var(--efrei-primary) !important; }
 .text-primary         { color: var(--efrei-primary) !important; }
 .border-primary       { border-color: var(--efrei-primary) !important; }
