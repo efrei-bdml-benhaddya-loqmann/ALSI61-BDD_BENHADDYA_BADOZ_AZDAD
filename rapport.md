@@ -99,7 +99,8 @@ Les règles métier ci-dessous ont servi de base à la conception du MCD. Elles 
 | RM9 | Une demande a un statut parmi **en_attente / validee / refusee**, initialisé à `en_attente`. | ENUM + DEFAULT |
 | RM10 | Le **solde disponible ne peut pas être négatif** : `jours_acquis − jours_pris ≥ 0`. | CHECK |
 | RM11 | Il existe **un seul solde** par (employé, type de congé, année). | UNIQUE `(id_employe, id_statut, annee)` |
-| RM12 | La **validation** d'une demande génère les entrées de planning et met à jour le solde. | Logique applicative (Flask) |
+| RM12 | La **validation** d'une demande met à jour le solde (`jours_pris + N`). | Trigger SQL (`trg_valider_demande`) |
+| RM13 | La **suppression** d'une demande déjà validée rembourse le solde (`jours_pris − N`). | Trigger SQL (`trg_annuler_conge_valide`) |
 
 ### 2.3 Dictionnaire des données
 
@@ -270,7 +271,14 @@ Les règles métier ci-dessous ont servi de base à la conception du MCD. Elles 
 
 ### 6.2 Contraintes d'intégrité et triggers
 
-*[Détailler PK, FK avec ON DELETE/ON UPDATE, UNIQUE, CHECK, et les triggers anti-chevauchement d'`EntreePlanning`.]*
+*[Détailler PK, FK avec ON DELETE/ON UPDATE, UNIQUE, CHECK, et les triggers ci-dessous.]*
+
+Deux triggers garantissent la cohérence de `SoldeConge` quelle que soit la voie d'accès à la base (Flask, Workbench, script externe…) :
+
+| Trigger | Événement | Effet |
+|---|---|---|
+| `trg_valider_demande` | `AFTER UPDATE ON DemandeConge` — passage à `validee` | Incrémente `SoldeConge.jours_pris` du nombre de jours (0,5 pour demi-journée, `DATEDIFF + 1` sinon). Sans effet si `decompte_solde = FALSE` (MAL, FOR…). La contrainte `ck_solde_positif` rejette automatiquement un dépassement. |
+| `trg_annuler_conge_valide` | `AFTER DELETE ON DemandeConge` — demande déjà `validee` | Décrémente `SoldeConge.jours_pris` du même nombre de jours pour rembourser le solde. Sans effet si la demande supprimée était `en_attente` ou `refusee`. |
 
 ## 6bis. Jeu de données (DML)
 
@@ -345,7 +353,7 @@ L'entité principale du CRUD est `DemandeConge`. Les huit fonctionnalités de l'
 | 3 | Voir le détail + données associées | `GET /conges/<id>` | SELECT avec JOINs |
 | 4 | Modifier une demande | `GET/POST /conges/<id>/modifier` | UPDATE |
 | 5 | Annuler / supprimer | `POST /conges/<id>/annuler` | DELETE |
-| 6 | Valider (manager) — décompte solde | `POST /conges/<id>/valider` | UPDATE + UPDATE SoldeConge |
+| 6 | Valider (manager) — décompte solde | `POST /conges/<id>/valider` | UPDATE DemandeConge (trigger `trg_valider_demande` met à jour SoldeConge) |
 | 7 | Refuser (manager) | `POST /conges/<id>/refuser` | UPDATE |
 | 8 | Calendrier équipe + statistiques | `GET /calendrier`, `GET /stats` | SELECT avec agrégats |
 
@@ -372,11 +380,11 @@ Le projet répond à l'ensemble des exigences de l'énoncé : un domaine riche d
 
 ### Limites actuelles
 
-La validation d'une demande et la mise à jour du solde reposent sur la logique applicative (Flask) plutôt que sur des triggers/procédures stockées : un accès direct à la base contournerait cette logique. L'application ne comporte pas d'authentification réelle (l'utilisateur courant se choisit dans la barre de navigation). Le calcul du nombre de jours décomptés ne gère pas finement les jours fériés et les week-ends.
+L'application ne comporte pas d'authentification réelle (l'utilisateur courant se choisit dans la barre de navigation). Le calcul du nombre de jours décomptés ne gère pas finement les jours fériés et les week-ends.
 
 ### Améliorations envisagées
 
-Plusieurs pistes prolongeraient le projet : déplacer la génération des entrées de planning et la décrémentation du solde dans des **procédures stockées / triggers** pour garantir l'intégrité quelle que soit la voie d'accès ; ajouter une **authentification** et une gestion des rôles (employé / manager / RH) ; intégrer un **calendrier des jours fériés** pour fiabiliser le décompte ; et ajouter des **notifications** lors de la soumission ou de la validation d'une demande.
+Plusieurs pistes prolongeraient le projet : ajouter une **authentification** et une gestion des rôles (employé / manager / RH) ; intégrer un **calendrier des jours fériés** pour fiabiliser le décompte ; déplacer la génération des entrées de planning dans une **procédure stockée** déclenchée à la validation ; et ajouter des **notifications** lors de la soumission ou de la validation d'une demande.
 
 *[Chaque membre peut compléter cette section avec le recul propre à sa partie.]*
 

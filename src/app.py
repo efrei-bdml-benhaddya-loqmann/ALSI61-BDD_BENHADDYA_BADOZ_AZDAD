@@ -274,7 +274,7 @@ def conge_valider(id_demande):
     uid = _current_user_id()
     demande = db.query(
         """
-        SELECT dc.*, sj.decompte_solde, sj.code
+        SELECT dc.*, sj.code
         FROM DemandeConge dc
         JOIN StatutJour sj ON sj.id_statut = dc.id_statut
         WHERE dc.id_demande = %s
@@ -288,21 +288,8 @@ def conge_valider(id_demande):
 
     nb_jours = _nb_jours(demande)
     try:
-        # Si le type décompte sur le solde (CP/RTT), on incrémente jours_pris.
+        # Le trigger trg_valider_demande met à jour SoldeConge automatiquement.
         # La contrainte CHECK ck_solde_positif rejette un dépassement de solde.
-        if demande["decompte_solde"]:
-            res = db.execute(
-                """
-                UPDATE SoldeConge
-                SET jours_pris = jours_pris + %s
-                WHERE id_employe = %s AND id_statut = %s AND annee = YEAR(%s)
-                """,
-                (nb_jours, demande["id_employe"], demande["id_statut"], demande["date_debut"]),
-            )
-            if res["rowcount"] == 0:
-                flash("Aucun solde trouvé pour ce type/année — validation impossible.", "warning")
-                return redirect(url_for("conge_detail", id_demande=id_demande))
-
         db.execute(
             """
             UPDATE DemandeConge

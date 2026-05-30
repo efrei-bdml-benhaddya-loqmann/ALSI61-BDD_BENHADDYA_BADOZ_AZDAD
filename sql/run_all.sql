@@ -16,6 +16,7 @@ SOURCE 03_statutjour.sql;
 SOURCE 04_entreeplanning.sql;
 SOURCE 05_demandeconge.sql;
 SOURCE 06_soldeconge.sql;
+SOURCE 08_triggers.sql;
 SOURCE 07_data.sql;
 
 SHOW TABLES;

@@ -204,6 +204,70 @@ CREATE TABLE SoldeConge (
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ====================================================
+-- TRIGGERS
+-- ====================================================
+
+DELIMITER //
+
+-- Décompte du solde à la validation d'une demande
+CREATE TRIGGER trg_valider_demande
+AFTER UPDATE ON DemandeConge
+FOR EACH ROW
+BEGIN
+    DECLARE v_decompte BOOLEAN;
+    DECLARE v_nb_jours DECIMAL(5,1);
+
+    IF NEW.statut_demande = 'validee' AND OLD.statut_demande != 'validee' THEN
+        SELECT decompte_solde INTO v_decompte
+        FROM StatutJour WHERE id_statut = NEW.id_statut;
+
+        IF v_decompte THEN
+            IF NEW.demi_journee_debut IN ('matin', 'apres-midi') THEN
+                SET v_nb_jours = 0.5;
+            ELSE
+                SET v_nb_jours = DATEDIFF(NEW.date_fin, NEW.date_debut) + 1;
+            END IF;
+
+            UPDATE SoldeConge
+            SET    jours_pris = jours_pris + v_nb_jours
+            WHERE  id_employe = NEW.id_employe
+              AND  id_statut  = NEW.id_statut
+              AND  annee      = YEAR(NEW.date_debut);
+        END IF;
+    END IF;
+END//
+
+-- Remboursement du solde à la suppression d'une demande validée
+CREATE TRIGGER trg_annuler_conge_valide
+AFTER DELETE ON DemandeConge
+FOR EACH ROW
+BEGIN
+    DECLARE v_decompte BOOLEAN;
+    DECLARE v_nb_jours DECIMAL(5,1);
+
+    IF OLD.statut_demande = 'validee' THEN
+        SELECT decompte_solde INTO v_decompte
+        FROM StatutJour WHERE id_statut = OLD.id_statut;
+
+        IF v_decompte THEN
+            IF OLD.demi_journee_debut IN ('matin', 'apres-midi') THEN
+                SET v_nb_jours = 0.5;
+            ELSE
+                SET v_nb_jours = DATEDIFF(OLD.date_fin, OLD.date_debut) + 1;
+            END IF;
+
+            UPDATE SoldeConge
+            SET    jours_pris = jours_pris - v_nb_jours
+            WHERE  id_employe = OLD.id_employe
+              AND  id_statut  = OLD.id_statut
+              AND  annee      = YEAR(OLD.date_debut);
+        END IF;
+    END IF;
+END//
+
+DELIMITER ;
+
+-- ====================================================
 -- DML — JEU DE DONNÉES
 -- ====================================================
 
