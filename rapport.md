@@ -5,7 +5,7 @@
 Ce fichier est le SQUELETTE du rapport. Le début et la fin sont rédigés.
 Les TROIS parties techniques sont à compléter par chaque membre :
 
-  • Partie I — MCD & MLD ........... Rédacteur : ____________________
+  • Partie I — MCD & MLD ........... Rédacteur : Samy AZDAD
   • Partie II — Base de données SQL  Rédacteur : ____________________
   • Partie III — Application Flask .. Rédacteur : ____________________
 
@@ -34,7 +34,7 @@ Règles de cohérence :
 |---|---|
 | Loqmann BENHADDYA | _(à compléter)_ |
 | Marius BADOZ | _(à compléter)_ |
-| Samy AZDAD | _(à compléter)_ |
+| Samy AZDAD | Partie I — Modélisation (MCD & MLD) |
 
 **Dépôt GitHub :** `ALSI-BDD_BENHADDYA_BADOZ_AZDAD`
 
@@ -185,8 +185,7 @@ Les règles métier ci-dessous ont servi de base à la conception du MCD. Elles 
 
 # Partie I — Modélisation de la base de données (MCD & MLD)
 
-> **Rédacteur : _______________________**
-> *Reste en Markdown. Insérer le schéma MCD (export draw.io / Looping / Workbench) en image, puis le supprimer/convertir au moment du PDF.*
+> **Rédacteur : Samy AZDAD**
 
 <!-- ============================================================
   À COMPLÉTER — Critères de l'énoncé à couvrir IMPÉRATIVEMENT :
@@ -209,29 +208,103 @@ Les règles métier ci-dessous ont servi de base à la conception du MCD. Elles 
 
 ### 4.1 Schéma MCD
 
-*[Insérer ici l'image du schéma MCD.]*
+Voici le schéma conceptuel de données modélisé et validé à l'aide de l'outil *Looping* :
+
+![Schéma MCD du projet MyEfrei Congés](./mcd.png)
 
 ### 4.2 Entités et attributs
 
-*[Décrire chaque entité et ses attributs.]*
+Notre modèle conceptuel repose sur six entités fondamentales :
+
+1. **SERVICE** : Représente les différents départements de l'entreprise.
+   * `id_service` : Identifiant technique (clé primaire).
+   * `code_service` : Code métier court et unique (ex : S01).
+   * `libelle` : Intitulé descriptif du service (ex : Informatique).
+2. **EMPLOYE** : Représente les collaborateurs de l'entreprise.
+   * `id_employe` : Identifiant technique de l'employé (clé primaire).
+   * `nom`, `prenom` : Informations d'état civil.
+   * `email` : Adresse de messagerie professionnelle, unique (sert d'identifiant de connexion).
+   * `date_embauche` : Date d'arrivée dans l'entreprise.
+3. **STATUTJOUR** : Dictionnaire de référence des statuts possibles pour chaque journée de travail.
+   * `id_statut` : Identifiant unique (clé primaire).
+   * `code` : Code court et unique (CP, RTT, TT, BUR, MAL, FOR).
+   * `libelle` : Libellé long (ex : Congé Payé).
+   * `decompte_solde` : Booléen indiquant si ce type de journée décompte les droits acquis.
+4. **ENTREEPLANNING** : Fait atomique représentant le planning d'un employé pour un jour précis.
+   * `id_entree` : Identifiant technique unique (clé primaire).
+   * `date` : Date de l'entrée.
+   * `demi_journee` : Précision temporelle (`matin`, `apres-midi`, `journee`).
+5. **DEMANDECONGE** : Document de demande ou archive de réservation de congés.
+   * `id_demande` : Identifiant technique (clé primaire).
+   * `date_debut`, `date_fin` : Plage de dates demandées.
+   * `demi_journee_debut`, `demi_journee_fin` : Précisions temporelles de début et de fin.
+   * `statut_demande` : État (`en_attente`, `validee`, `refusee`).
+   * `date_soumission` : Date de création de la demande.
+   * `motif` : Explication rédigée par l'employé.
+6. **SOLDECONGE** : Suivi annuel et par type des droits aux congés pour chaque employé.
+   * `id_solde` : Identifiant technique (clé primaire).
+   * `annee` : Année civile d'exercice.
+   * `jours_acquis` : Crédit de jours cumulés.
+   * `jours_pris` : Débit de jours consommés.
 
 ### 4.3 Associations et cardinalités
 
-*[Lister chaque association avec ses cardinalités (min, max) des deux côtés. Mettre en évidence l'association ternaire `EntreePlanning` et l'auto-association de management.]*
+Les cardinalités minimales et maximales ont été minutieusement modélisées afin d'assurer l'intégrité et la robustesse métier :
+
+* **emploie** (SERVICE `0,n` ↔ `1,1` EMPLOYE) : Un service emploie zéro à plusieurs employés ; un employé appartient à exactement un service (contrainte `NOT NULL` sur le service).
+* **manage** (EMPLOYE `0,n` ↔ `0,1` EMPLOYE - Relation réflexive) : Un manager peut encadrer zéro à plusieurs employés ; un employé est managé par au plus un manager (la valeur nulle `0` modélise le sommet de la hiérarchie).
+* **a des entrées** (EMPLOYE `0,n` ↔ `1,1` ENTREEPLANNING) : Un employé possède zéro à plusieurs entrées de planning (ex : nouvelle recrue) ; une entrée concerne obligatoirement un et un seul employé.
+* **qualifie** (STATUTJOUR `1,n` ↔ `1,1` ENTREEPLANNING) : Un statut caractérise au moins une entrée planning ; une entrée planning a obligatoirement un et un seul statut affecté.
+* **soumet** (EMPLOYE `0,n` ↔ `1,1` DEMANDECONGE) : Un employé formule de zéro à plusieurs demandes de congé ; une demande est formulée par un et un seul employé.
+* **type de congé** (STATUTJOUR `1,n` ↔ `1,1` DEMANDECONGE) : Un statut qualifie au moins une demande de congé ; une demande porte sur un et un seul type de congé.
+* **valide en tant que manager** (EMPLOYE `0,n` ↔ `0,1` DEMANDECONGE) : Un manager peut valider de zéro à plusieurs demandes de congé ; une demande est validée par au plus un manager (le `0` représente une demande encore en attente de traitement).
+* **possède solde** (EMPLOYE `0,n` ↔ `1,1` SOLDECONGE) : Un employé possède zéro à plusieurs soldes de congés (selon son contrat ou son ancienneté) ; un solde est rattaché à exactement un employé.
+* **concerne statut** (STATUTJOUR `0,n` ↔ `1,1` SOLDECONGE) : Un statut peut faire l'objet de zéro ou plusieurs lignes de solde (seuls CP et RTT en ont un en pratique) ; un solde de congés concerne exactement un type de statut.
 
 ### 4.4 Justification de la 3e Forme Normale (3FN)
 
-*[Démontrer 1FN → 2FN → 3FN : atomicité des attributs, dépendance pleine à la clé, absence de dépendance transitive.]*
+Une base de données est saine si elle respecte la 3FN, éliminant les redondances et les anomalies de mise à jour :
+
+1. **Première Forme Normale (1FN)** : Toutes nos entités disposent d'une clé primaire unique (`id_...`) permettant d'identifier chaque tuple de manière univoque. De plus, tous nos attributs sont **atomiques** (mono-valeurs indivisibles). Il n'y a pas de liste ou de tableau imbriqué dans une colonne (ex : nom et prénom sont séparés, les dates sont unitaires).
+2. **Deuxième Forme Normale (2FN)** : La base est en 1FN. De plus, toutes nos clés primaires sont simples (composées d'un seul attribut artificiel auto-incrémenté `id_...`). Par conséquent, tout attribut non-clé dépend **pleinement** et entièrement de la clé primaire. Il n'existe aucune dépendance fonctionnelle partielle (une partie de clé déterminant un attribut).
+3. **Troisième Forme Normale (3FN)** : La base est en 2FN. De plus, il n'existe **aucune dépendance transitive** entre attributs non-clés. C'est-à-dire qu'aucun attribut non-clé ne dépend d'un autre attribut non-clé. Par exemple, dans `EMPLOYE`, le `nom` ou l'`email` dépendent uniquement de l'`id_employe`, et non de la date d'embauche ou du service. Les informations relatives au service (`libelle`) ou au statut (`libelle_statut`) sont isolées dans leurs tables respectives, évitant la redondance.
+
+Notre schéma conceptuel respecte donc rigoureusement la 3FN.
+
+---
 
 ## 5. Modèle Logique de Données (MLD)
 
-### 5.1 Règles de passage MCD → MLD
+### 5.1 Schéma graphique du MLD
 
-*[Expliquer les règles appliquées : entité → table ; association (1,n)/(1,1)–(0,n) → clé étrangère ; (0,n)–(0,n) → table de relation ; attributs d'association → attributs de la table relation.]*
+Voici le schéma relationnel généré dynamiquement à partir de notre MCD corrigé sous Looping :
 
-### 5.2 Notation textuelle du MLD
+![Schéma MLD du projet MyEfrei Congés](./mld.png)
 
-*[Donner la notation complète sous la forme `NomTable(clé_primaire, attribut, #clé_etrangere)`. Base de départ disponible dans `MLD.txt`.]*
+### 5.2 Règles de passage MCD → MLD
+
+Le passage du MCD au MLD a respecté les règles de dérivation relationnelle standards :
+
+1. **Traduction des entités** : Chaque entité du MCD devient une table physique du MLD. Les identifiants primaires deviennent des clés primaires (PK).
+2. **Traduction des associations 1:N (ou 0:1 ↔ 0:N / 1:N)** :
+   * La clé primaire de l'entité côté "plusieurs" (`N` ou `0,n` / `1,n`) migre comme clé étrangère (FK) dans la table correspondant à l'entité côté "un" (`1,1` ou `0,1`).
+   * *Exemple 1 :* L'association `emploie` (`SERVICE` 0,n ↔ 1,1 `EMPLOYE`) entraîne la migration de `id_service` en tant que clé étrangère dans la table `EMPLOYE`.
+   * *Exemple 2 :* L'association réflexive `manage` (`EMPLOYE` 0,n ↔ 0,1 `EMPLOYE`) entraîne la migration de `id_employe` comme clé étrangère réflexive `id_manager` (renommée depuis `id_employe_1`) dans `EMPLOYE`.
+   * *Exemple 3 :* L'association `valide en tant que manager` (`EMPLOYE` 0,n ↔ 0,1 `DEMANDECONGE`) entraîne la migration de l'identifiant du manager `id_employe` comme clé étrangère nommée `id_manager_valideur` dans `DEMANDECONGE` (NULL autorisé).
+3. **Absence d'association N:M** : Toutes nos associations comportent au moins un côté avec une cardinalité maximale de `1` (cardinalités `1,1` ou `0,1`). Il n'y a donc aucune association Many-to-Many (`0,n` ↔ `0,n`), ce qui évite la création de tables de jointure intermédiaires non modélisées comme entités. L'association ternaire `EntreePlanning` a quant à elle été directement modélisée comme une entité physique pour y rattacher l'attribut de précision temporelle `demi_journee`.
+
+### 5.3 Notation textuelle du MLD
+
+Voici la formulation rigoureuse et finale des tables de notre base de données :
+
+* **Service** (<u>id_service</u>, code_service, libelle)
+* **Employe** (<u>id_employe</u>, nom, prenom, email, date_embauche, #id_service, #id_manager)
+* **StatutJour** (<u>id_statut</u>, libelle, code, decompte_solde)
+* **EntreePlanning** (<u>id_entree</u>, date, demi_journee, #id_employe, #id_statut)
+* **DemandeConge** (<u>id_demande</u>, date_debut, date_fin, demi_journee_debut, demi_journee_fin, statut_demande, date_soumission, motif, #id_employe, #id_statut, #id_manager_valideur)
+* **SoldeConge** (<u>id_solde</u>, annee, jours_acquis, jours_pris, #id_employe, #id_statut)
+
+*Note : Les clés primaires sont soulignées et les clés étrangères sont préfixées d'un dièse (`#`).*
 
 ---
 ---
