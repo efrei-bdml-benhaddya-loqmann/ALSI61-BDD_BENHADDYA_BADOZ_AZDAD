@@ -687,6 +687,10 @@ L'intérêt est triple : **lisibilité** (les interrogations métier deviennent 
 
 ## 8. Architecture de l'application
 
+![Figure 1 — Écran principal de l'application MyEfrei Congés : cartes de solde par type de congé, liste des demandes personnelles avec filtres et recherche, et tableau des demandes de l'équipe à valider (vue manager).](assets/myefreicoges_main_screen.png)
+
+***Figure 1.** Écran d'accueil (`GET /`) — soldes, mes demandes et demandes de l'équipe à valider.*
+
 L'application suit une architecture en trois couches :
 
 - **Routage (`app.py` + `routes/`)** : dix routes [Flask](https://flask.palletsprojects.com/en/stable/quickstart/) couvrent toutes les opérations CRUD sur `DemandeConge`, plus deux vues de consultation (calendrier, statistiques). Chaque vue vit dans son propre fichier sous `routes/` ; `app.py` se limite à l'assemblage (création de l'application, `context_processor`, branchement des URL via `add_url_rule`). La logique transverse (utilisateur courant, parsing de formulaire, calcul du nombre de jours) est factorisée dans `helpers.py`. Chaque route délègue les accès base à `db.py` et renvoie un template [Jinja2](https://jinja.palletsprojects.com/en/stable/templates/).

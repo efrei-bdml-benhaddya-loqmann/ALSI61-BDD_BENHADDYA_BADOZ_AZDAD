@@ -3,6 +3,8 @@
 Application web de réservation de congés adossée à une base MySQL.
 Un employé réserve, modifie et annule ses demandes de congé ; son manager les valide ou les refuse ; la validation décompte automatiquement le solde.
 
+![Écran principal de MyEfrei Congés — soldes, mes demandes et demandes de l'équipe à valider](assets/myefreicoges_main_screen.png)
+
 ## Prérequis
 
 - MySQL 8.x
