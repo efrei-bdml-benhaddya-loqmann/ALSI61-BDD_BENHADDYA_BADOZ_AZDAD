@@ -1,23 +1,4 @@
-<!--
-====================================================================
-  CONSIGNES DE RÉDACTION — À LIRE AVANT DE COMPLÉTER (puis à supprimer)
-====================================================================
-Ce fichier est le SQUELETTE du rapport. Le début et la fin sont rédigés.
-Les TROIS parties techniques sont à compléter par chaque membre :
 
-  • Partie I — MCD & MLD ........... Rédacteur : Samy AZDAD
-  • Partie II — Base de données SQL  Rédacteur : ____________________
-  • Partie III — Application Flask .. Rédacteur : ____________________
-
-Équipe : Loqmann BENHADDYA · Marius BADOZ · Samy AZDAD
-
-Règles de cohérence :
-  - On reste en Markdown jusqu'à la fin ; la mise en forme PDF se fera ensuite.
-  - Chaque zone « À COMPLÉTER » liste les critères de l'énoncé à couvrir.
-  - Ne pas supprimer les rappels de critères tant que la partie n'est pas finie.
-  - Supprimer ce bloc de consignes avant l'export PDF.
-====================================================================
--->
 
 # Projet de Base de Données — Réservation de congés
 
@@ -786,6 +767,4 @@ Plusieurs pistes prolongeraient le projet : ajouter une **authentification** et 
 2. `cd src` → `pip install -r requirements.txt` → copier `.env.example` en `.env` et renseigner `DB_PASSWORD`.
 3. `python app.py` puis ouvrir http://localhost:5000.
 
-### Rappel — Vidéo de présentation (obligatoire)
 
-La vidéo (12 min max, déposée sur Panopto via Teams) doit présenter : la **conception** (choix de modélisation, cardinalités, justification 3FN — 3–4 min), le **modèle physique** (contenu de tables, intégrité à l'insertion, comportement en cas de modification/suppression d'un enregistrement référencé — 2–3 min), une **démonstration** (requêtes dans Workbench + application Flask — 4–5 min) et le **bilan critique**. **Les trois membres doivent apparaître et intervenir**, sous peine d'un 0/20 pour le membre absent.
