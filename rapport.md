@@ -1,6 +1,6 @@
 
 
-# Projet de Base de Données — Réservation de congés
+# Projet de Base de Données — MyEfrei Congés
 
 ### Outil de gestion du planning et des congés d'une entreprise
 
@@ -17,7 +17,7 @@
 | Marius BADOZ | Partie II — Base de données SQL|
 | Samy AZDAD | Partie I — Modélisation (MCD & MLD) |
 
-**Dépôt GitHub :** `ALSI-BDD_BENHADDYA_BADOZ_AZDAD`
+**Dépôt GitHub :** `ALSI61-BDD_BENHADDYA_BADOZ_AZDAD`
 
 ---
 
