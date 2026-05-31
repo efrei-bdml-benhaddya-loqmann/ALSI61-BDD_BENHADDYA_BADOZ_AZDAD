@@ -376,6 +376,38 @@ INSERT INTO SoldeConge (annee, jours_acquis, jours_pris, id_employe, id_statut) 
     (2026, 25, 25, 9, 1), (2026, 12, 12, 9, 2),
     (2026, 25, 6, 10, 1), (2026, 12, 2, 10, 2);
 
+-- ====================================================
+-- VUES
+-- ====================================================
+
+-- ----------------------------------------
+-- v_demandes_completes — consolide une demande de congé avec son demandeur,
+-- son service, son type, son valideur et le nombre de jours décomptés.
+-- Factorise les jointures réutilisées par les requêtes et l'application Flask.
+-- ----------------------------------------
+CREATE OR REPLACE VIEW v_demandes_completes AS
+SELECT  dc.id_demande,
+        dc.date_debut,
+        dc.date_fin,
+        dc.demi_journee_debut,
+        dc.statut_demande,
+        dc.date_soumission,
+        dc.motif,
+        CONCAT_WS(' ', e.prenom, e.nom)  AS demandeur,
+        s.libelle                        AS service,
+        sj.code                          AS code_type,
+        sj.libelle                       AS type_conge,
+        CONCAT_WS(' ', v.prenom, v.nom)  AS valideur,
+        CASE
+            WHEN dc.demi_journee_debut IN ('matin', 'apres-midi') THEN 0.5
+            ELSE DATEDIFF(dc.date_fin, dc.date_debut) + 1
+        END                              AS nb_jours
+FROM    DemandeConge dc
+JOIN    Employe e     ON e.id_employe = dc.id_employe
+JOIN    Service s     ON s.id_service = e.id_service
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+LEFT JOIN Employe v   ON v.id_employe = dc.id_manager_valideur;
+
 -- ----------------------------------------
 -- Vérification : afficher les tables créées
 -- ----------------------------------------

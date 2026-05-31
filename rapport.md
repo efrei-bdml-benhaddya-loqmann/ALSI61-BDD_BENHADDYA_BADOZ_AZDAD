@@ -32,8 +32,8 @@ Règles de cohérence :
 
 | Membre | Partie rédigée |
 |---|---|
-| Loqmann BENHADDYA | _(à compléter)_ |
-| Marius BADOZ | _(à compléter)_ |
+| Loqmann BENHADDYA | Partie III — Application Flask |
+| Marius BADOZ | Partie II — Base de données SQL|
 | Samy AZDAD | Partie I — Modélisation (MCD & MLD) |
 
 **Dépôt GitHub :** `ALSI-BDD_BENHADDYA_BADOZ_AZDAD`
@@ -311,67 +311,357 @@ Voici la formulation rigoureuse et finale des tables de notre base de données :
 
 # Partie II — Base de données SQL
 
-> **Rédacteur : _______________________**
+> **Rédacteur : Marius BADOZ**
 > *SGBD cible : MySQL. Le script doit s'exécuter sans erreur sur une installation standard.*
 
-<!-- ============================================================
-  À COMPLÉTER — Critères de l'énoncé à couvrir IMPÉRATIVEMENT :
-  [ ] DDL : CREATE DATABASE IF NOT EXISTS + sélection de la base
-  [ ] DDL : DROP TABLE IF EXISTS (ré-exécutable)
-  [ ] DDL : clés primaires, clés étrangères AVEC ON DELETE / ON UPDATE
-  [ ] DDL : contraintes NOT NULL, UNIQUE, CHECK pertinentes
-  [ ] DML : INSERT INTO peuplant CHAQUE table, jeu cohérent
-  [ ] Les 15 requêtes R1–R15, chacune avec un BREF commentaire d'approche
-  [ ] Couvrir : SELECT/WHERE/ORDER BY, INNER/LEFT JOIN, GROUP BY/HAVING,
-      sous-requêtes scalaires/corrélées, IN/NOT IN, EXISTS/NOT EXISTS
-  Fichiers de référence du dépôt : script_creation.sql, sql/*.sql, requetes.sql
-  (Mapping des 15 requêtes au domaine déjà présent dans requetes.sql :
-   R1 demandes+demandeur+type+statut ; R2 demandes/service ;
-   R3 jours validés/employé ; R4 historique d'un employé ;
-   R5 demandes traitées/manager/statut ; R6 demandes en attente ;
-   R7 file de validation par manager ; R8 soldes restants 2026 ;
-   R9 demandes chevauchant une semaine ; R10 demandes refusées+motif ;
-   R11 solde CP > moyenne ; R12 employés > moyenne de demandes ;
-   R13 employés avec ≥1 validée ; R14 employés sans demande ;
-   R15 employés CP pris > moyenne.)
-============================================================ -->
+La base est intégralement décrite dans le fichier `script_creation.sql` (DDL + triggers + DML en un seul script ré-exécutable) ; une version éclatée, un fichier par objet, est disponible dans le dossier `sql/` et chaînée par `sql/run_all.sql`. Le SGBD cible est **MySQL 8.x** avec le moteur **InnoDB** (indispensable pour les clés étrangères et les triggers).
 
 ## 6. Script de création (DDL)
 
 ### 6.1 Création de la base et des tables
 
-*[Présenter la stratégie : ordre de création respectant les dépendances (Service → Employe → StatutJour → EntreePlanning → DemandeConge → SoldeConge), DROP/CREATE, contraintes. Extraits de code commentés.]*
+**Ré-exécutabilité.** Le script commence par détruire puis recréer entièrement la base, ce qui le rend rejouable autant de fois que nécessaire sans laisser d'état résiduel :
 
-### 6.2 Contraintes d'intégrité et triggers
+```sql
+DROP DATABASE IF EXISTS planning_entreprise;
+CREATE DATABASE planning_entreprise
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+USE planning_entreprise;
+```
 
-*[Détailler PK, FK avec ON DELETE/ON UPDATE, UNIQUE, CHECK, et les triggers ci-dessous.]*
+Le jeu de caractères `utf8mb4` est choisi pour gérer correctement les accents (prénoms, libellés) et tout caractère Unicode.
 
-Deux triggers garantissent la cohérence de `SoldeConge` quelle que soit la voie d'accès à la base (Flask, Workbench, script externe…) :
+**Ordre de création.** Les tables sont créées dans l'ordre de leurs dépendances pour que chaque clé étrangère pointe vers une table déjà existante :
+
+> `Service` → `Employe` → `StatutJour` → `EntreePlanning` → `DemandeConge` → `SoldeConge`
+
+`Employe` est créée après `Service` (FK `id_service`) ; `EntreePlanning`, `DemandeConge` et `SoldeConge` après `Employe` et `StatutJour` dont elles dépendent. La table `Employe` étant **auto-référente** (`id_manager` → `Employe`), le script encadre la création par `SET FOREIGN_KEY_CHECKS = 0/1` pour neutraliser la vérification le temps de la construction.
+
+À titre d'exemple, la table `Employe` réunit clé primaire auto-incrémentée, contrainte d'unicité, et les deux clés étrangères (dont l'auto-référence) :
+
+```sql
+CREATE TABLE Employe (
+    id_employe    INT          NOT NULL AUTO_INCREMENT,
+    nom           VARCHAR(100) NOT NULL,
+    prenom        VARCHAR(100) NOT NULL,
+    email         VARCHAR(150) NOT NULL,
+    date_embauche DATE         NOT NULL,
+    id_service    INT          NOT NULL,
+    id_manager    INT              NULL COMMENT 'NULL = sommet hiérarchie (DG)',
+
+    CONSTRAINT pk_employe     PRIMARY KEY (id_employe),
+    CONSTRAINT uq_email       UNIQUE      (email),
+    CONSTRAINT fk_emp_service FOREIGN KEY (id_service) REFERENCES Service(id_service)
+                                  ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_emp_manager FOREIGN KEY (id_manager) REFERENCES Employe(id_employe)
+                                  ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB;
+```
+
+### 6.2 Contraintes d'intégrité
+
+Chaque table porte les contraintes qui traduisent les règles métier (cf. §2.2) directement au niveau du SGBD :
+
+- **Clés primaires** : toutes techniques, `INT AUTO_INCREMENT` (`pk_service`, `pk_employe`, `pk_statut`, `pk_entree`, `pk_demande`, `pk_solde`).
+- **Clés étrangères avec politique référentielle explicite** (`ON DELETE` / `ON UPDATE`), choisie selon la sémantique métier :
+
+| Clé étrangère | ON DELETE | Justification |
+|---|---|---|
+| `Employe.id_service` → `Service` | `RESTRICT` | On interdit de supprimer un service qui emploie encore des collaborateurs. |
+| `Employe.id_manager` → `Employe` | `SET NULL` | Si un manager quitte l'entreprise, ses subordonnés se retrouvent sans manager (NULL) plutôt que supprimés. |
+| `EntreePlanning.id_employe` → `Employe` | `CASCADE` | Le planning d'un employé supprimé n'a plus de sens : ses entrées partent avec lui. |
+| `EntreePlanning.id_statut` → `StatutJour` | `RESTRICT` | On protège le dictionnaire de référence : impossible de supprimer un statut utilisé. |
+| `DemandeConge.id_employe` → `Employe` | `CASCADE` | Les demandes suivent le sort de leur demandeur. |
+| `DemandeConge.id_statut` → `StatutJour` | `RESTRICT` | Même protection du dictionnaire de référence. |
+| `DemandeConge.id_manager_valideur` → `Employe` | `SET NULL` | Le départ du valideur ne doit pas effacer la demande ; on perd seulement la trace du valideur. |
+| `SoldeConge.id_employe` → `Employe` | `CASCADE` | Les soldes suivent le sort de leur employé. |
+| `SoldeConge.id_statut` → `StatutJour` | `RESTRICT` | Protection du dictionnaire de référence. |
+
+Toutes les FK sont en `ON UPDATE CASCADE` : une éventuelle renumérotation d'un identifiant se propage automatiquement.
+
+- **`NOT NULL`** sur tous les attributs obligatoires (RM1 : `id_service` ; dates, nom, prénom, email…).
+- **`UNIQUE`** : `code_service`, `email`, `(id_employe, date, demi_journee)` pour le planning (RM6), `(id_employe, id_statut, annee)` pour le solde (RM11).
+- **`CHECK`** : `code_service REGEXP '^S[0-9]{2}$'` (RM3) ; `code IN ('CP','RTT','TT','BUR','MAL','FOR')` (RM4) ; `date_debut <= date_fin` (RM8) ; `jours_acquis >= 0`, `jours_pris >= 0` et `jours_acquis - jours_pris >= 0` (RM10).
+- **`ENUM`** pour les domaines fermés : `demi_journee` (`matin`/`apres-midi`/`journee`) et `statut_demande` (`en_attente`/`validee`/`refusee`, défaut `en_attente`, RM9).
+
+### 6.3 Triggers
+
+Quatre triggers complètent les contraintes déclaratives pour couvrir des règles que `CHECK`/`UNIQUE` ne savent pas exprimer (comparaisons inter-lignes, mises à jour dérivées).
+
+**a) Anti-chevauchement journée ↔ demi-journée (RM7).** La contrainte `UNIQUE (id_employe, date, demi_journee)` empêche deux entrées identiques mais pas qu'une entrée `journee` coexiste avec une entrée `matin` pour le même jour. Les triggers `trg_entree_no_overlap_insert` et `trg_entree_no_overlap_update` (BEFORE INSERT / BEFORE UPDATE sur `EntreePlanning`) détectent ce conflit et lèvent une erreur applicative :
+
+```sql
+IF NEW.demi_journee = 'journee' THEN
+    IF EXISTS (SELECT 1 FROM EntreePlanning
+               WHERE id_employe = NEW.id_employe AND date = NEW.date
+                 AND demi_journee IN ('matin','apres-midi')) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Conflit : une demi-journée existe déjà...';
+    END IF;
+-- ... et le cas symétrique (insertion d'une demi-journée si 'journee' existe)
+END IF;
+```
+
+**b) Cohérence automatique du solde.** Deux triggers garantissent la cohérence de `SoldeConge` quelle que soit la voie d'accès à la base (Flask, Workbench, script externe…) :
 
 | Trigger | Événement | Effet |
 |---|---|---|
 | `trg_valider_demande` | `AFTER UPDATE ON DemandeConge` — passage à `validee` | Incrémente `SoldeConge.jours_pris` du nombre de jours (0,5 pour demi-journée, `DATEDIFF + 1` sinon). Sans effet si `decompte_solde = FALSE` (MAL, FOR…). La contrainte `ck_solde_positif` rejette automatiquement un dépassement. |
 | `trg_annuler_conge_valide` | `AFTER DELETE ON DemandeConge` — demande déjà `validee` | Décrémente `SoldeConge.jours_pris` du même nombre de jours pour rembourser le solde. Sans effet si la demande supprimée était `en_attente` ou `refusee`. |
 
+Ce dispositif rend le décompte des congés **indépendant de l'application** : valider une demande dans Workbench met le solde à jour exactement comme via l'interface Flask.
+
 ## 6bis. Jeu de données (DML)
 
-*[Décrire le jeu de données inséré (volume par table, cohérence). Préciser que `SELECT COUNT(*) FROM EntreePlanning;` renvoie 51.]*
+Le script insère un jeu de données réaliste et cohérent peuplant **chacune des six tables** :
+
+| Table | Volume | Contenu |
+|---|---|---|
+| `Service` | 4 | Direction (S01), Informatique (S02), RH (S03), Commercial (S04) |
+| `StatutJour` | 6 | CP, RTT, TT, BUR, MAL, FOR (ids fixés : CP=1, RTT=2…) |
+| `Employe` | 10 | 1 DG sans manager (Loqmann) + 3 managers de service + 6 collaborateurs, hiérarchie sur deux niveaux |
+| `EntreePlanning` | 51 | Semaine du 25 au 29/05/2026 pour les 10 employés (5 jours × 10, dont une journée scindée matin/après-midi qui porte le total à 51) |
+| `DemandeConge` | 12 | Mix des trois statuts : validées, en attente, refusées (avec motif et valideur) |
+| `SoldeConge` | 20 | Un solde CP **et** un solde RTT par employé pour l'année 2026 |
+
+La cohérence est soignée : chaque demande validée a un `id_manager_valideur` qui est bien le manager du demandeur, les soldes pris restent inférieurs aux soldes acquis, et les entrées de planning ne violent pas la règle d'anti-chevauchement. On peut le vérifier après exécution :
+
+```sql
+SELECT COUNT(*) FROM EntreePlanning;   -- renvoie 51
+```
 
 ## 7. Les 15 requêtes SQL (R1 → R15)
 
-*[Pour chaque requête : énoncé adapté au domaine, code SQL, bref commentaire d'approche, et éventuellement un extrait de résultat.]*
+Les quinze requêtes figurent dans `requetes.sql` et couvrent l'ensemble des techniques exigées par l'énoncé : projection/sélection/tri, jointures internes et externes, regroupements avec `GROUP BY`/`HAVING`, et — pour R11 à R15 — des sous-requêtes scalaires, dérivées et corrélées ainsi que `EXISTS`/`NOT EXISTS`.
 
 ### 7.1 Requêtes de base (R1–R3)
-*[…]*
+
+**R1 — Toutes les demandes avec demandeur, type et statut.** *Approche :* jointures `DemandeConge`–`Employe`–`StatutJour`, tri sur la date de soumission décroissante.
+
+```sql
+SELECT  dc.id_demande,
+        CONCAT_WS(' ', e.prenom, e.nom) AS demandeur,
+        sj.libelle                      AS type_conge,
+        dc.date_debut, dc.date_fin, dc.statut_demande
+FROM    DemandeConge dc
+JOIN    Employe e     ON e.id_employe = dc.id_employe
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+ORDER BY dc.date_soumission DESC;
+```
+
+**R2 — Nombre de demandes par service.** *Approche :* `LEFT JOIN` depuis `Service` (pour conserver les services sans aucune demande) + `COUNT` regroupé.
+
+```sql
+SELECT  s.libelle AS service, COUNT(dc.id_demande) AS nb_demandes
+FROM    Service s
+JOIN    Employe e         ON e.id_service = s.id_service
+LEFT JOIN DemandeConge dc ON dc.id_employe = e.id_employe
+GROUP BY s.id_service, s.libelle
+ORDER BY nb_demandes DESC;
+```
+
+**R3 — Total des jours validés par employé.** *Approche :* filtre `WHERE statut = 'validee'`, somme calculée `DATEDIFF + 1` puis regroupement par employé.
+
+```sql
+SELECT  CONCAT_WS(' ', e.prenom, e.nom)               AS employe,
+        SUM(DATEDIFF(dc.date_fin, dc.date_debut) + 1) AS nb_jours_valides
+FROM    Employe e
+JOIN    DemandeConge dc ON dc.id_employe = e.id_employe
+WHERE   dc.statut_demande = 'validee'
+GROUP BY e.id_employe, e.prenom, e.nom
+ORDER BY nb_jours_valides DESC;
+```
 
 ### 7.2 Requêtes avec jointures (R4–R6)
-*[…]*
 
-### 7.3 Requêtes avec agrégats (R7–R10)
-*[…]*
+**R4 — Historique d'un employé** (id = 9, Adrien Bichart). *Approche :* jointure + filtre sur l'employé + tri chronologique.
 
-### 7.4 Requêtes avancées — sous-requêtes, EXISTS/NOT EXISTS (R11–R15)
-*[…]*
+```sql
+SELECT  dc.date_debut, dc.date_fin, sj.libelle AS type_conge, dc.statut_demande
+FROM    DemandeConge dc
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+WHERE   dc.id_employe = 9
+ORDER BY dc.date_debut;
+```
+
+**R5 — Demandes traitées par chaque manager valideur, ventilées par statut.** *Approche :* jointure sur le valideur + regroupement multi-colonnes (valideur, statut).
+
+```sql
+SELECT  CONCAT_WS(' ', v.prenom, v.nom) AS valideur,
+        dc.statut_demande, COUNT(*) AS nb
+FROM    DemandeConge dc
+JOIN    Employe v ON v.id_employe = dc.id_manager_valideur
+GROUP BY dc.id_manager_valideur, v.prenom, v.nom, dc.statut_demande
+ORDER BY valideur, dc.statut_demande;
+```
+
+**R6 — Demandes en attente, avec demandeur et type.** *Approche :* jointures + filtre `statut = 'en_attente'`.
+
+```sql
+SELECT  dc.id_demande, CONCAT_WS(' ', e.prenom, e.nom) AS demandeur,
+        sj.libelle AS type_conge, dc.date_debut, dc.date_fin
+FROM    DemandeConge dc
+JOIN    Employe e     ON e.id_employe = dc.id_employe
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+WHERE   dc.statut_demande = 'en_attente'
+ORDER BY dc.date_debut;
+```
+
+### 7.3 Requêtes avec agrégats et jointures externes (R7–R10)
+
+**R7 — File de validation par manager.** *Approche :* **auto-jointure** `Employe`(manager)–`Employe`(subordonné), puis `LEFT JOIN` sur les demandes en attente afin d'afficher aussi les managers dont l'équipe n'a rien à valider (compte = 0).
+
+```sql
+SELECT  CONCAT_WS(' ', m.prenom, m.nom) AS manager,
+        COUNT(dc.id_demande)            AS nb_a_valider
+FROM    Employe m
+JOIN    Employe e ON e.id_manager = m.id_employe
+LEFT JOIN DemandeConge dc ON dc.id_employe = e.id_employe
+                         AND dc.statut_demande = 'en_attente'
+GROUP BY m.id_employe, m.prenom, m.nom
+ORDER BY nb_a_valider DESC;
+```
+
+**R8 — Soldes restants par employé et par type (2026).** *Approche :* colonne calculée `jours_acquis - jours_pris` + jointures.
+
+```sql
+SELECT  CONCAT_WS(' ', e.prenom, e.nom) AS employe, sj.libelle AS type_conge,
+        sc.jours_acquis, sc.jours_pris,
+        (sc.jours_acquis - sc.jours_pris) AS jours_restants
+FROM    SoldeConge sc
+JOIN    Employe e     ON e.id_employe = sc.id_employe
+JOIN    StatutJour sj ON sj.id_statut = sc.id_statut
+WHERE   sc.annee = 2026
+ORDER BY employe, type_conge;
+```
+
+**R9 — Demandes chevauchant la semaine du 25 au 29/05/2026.** *Approche :* test de **chevauchement d'intervalles** (`date_debut <= fin_période AND date_fin >= début_période`) + regroupement par type.
+
+```sql
+SELECT  sj.libelle AS type_conge, COUNT(*) AS nb_demandes
+FROM    DemandeConge dc
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+WHERE   dc.date_debut <= '2026-05-29' AND dc.date_fin >= '2026-05-25'
+GROUP BY sj.id_statut, sj.libelle
+ORDER BY nb_demandes DESC;
+```
+
+**R10 — Demandes refusées : demandeur, type, motif et refuseur.** *Approche :* jointures + `LEFT JOIN` auto-référent sur le valideur (robuste même si le valideur est NULL).
+
+```sql
+SELECT  CONCAT_WS(' ', e.prenom, e.nom) AS demandeur, sj.libelle AS type_conge,
+        dc.date_debut, dc.motif, CONCAT_WS(' ', v.prenom, v.nom) AS refuse_par
+FROM    DemandeConge dc
+JOIN    Employe e     ON e.id_employe = dc.id_employe
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+LEFT JOIN Employe v   ON v.id_employe = dc.id_manager_valideur
+WHERE   dc.statut_demande = 'refusee'
+ORDER BY dc.date_debut;
+```
+
+### 7.4 Requêtes avancées — sous-requêtes, EXISTS / NOT EXISTS (R11–R15)
+
+**R11 — Soldes CP supérieurs à la moyenne de l'entreprise.** *Approche :* **sous-requête scalaire** (`AVG`) dans le `WHERE`.
+
+```sql
+SELECT  CONCAT_WS(' ', e.prenom, e.nom) AS employe,
+        (sc.jours_acquis - sc.jours_pris) AS cp_restant
+FROM    Employe e
+JOIN    SoldeConge sc ON sc.id_employe = e.id_employe
+JOIN    StatutJour sj ON sj.id_statut  = sc.id_statut
+WHERE   sj.code = 'CP'
+  AND   (sc.jours_acquis - sc.jours_pris) > (
+            SELECT AVG(sc2.jours_acquis - sc2.jours_pris)
+            FROM   SoldeConge sc2 JOIN StatutJour sj2 ON sj2.id_statut = sc2.id_statut
+            WHERE  sj2.code = 'CP')
+ORDER BY cp_restant DESC;
+```
+
+**R12 — Employés plus actifs que la moyenne.** *Approche :* **sous-requête dérivée** (table dérivée comptant les demandes par employé) comparée via `HAVING`.
+
+```sql
+SELECT  CONCAT_WS(' ', e.prenom, e.nom) AS employe, COUNT(dc.id_demande) AS nb_demandes
+FROM    Employe e
+JOIN    DemandeConge dc ON dc.id_employe = e.id_employe
+GROUP BY e.id_employe, e.prenom, e.nom
+HAVING  COUNT(dc.id_demande) > (
+            SELECT AVG(nb) FROM (
+                SELECT COUNT(*) AS nb FROM DemandeConge GROUP BY id_employe
+            ) AS sous_total)
+ORDER BY nb_demandes DESC;
+```
+
+**R13 — Employés ayant au moins une demande validée.** *Approche :* `EXISTS` (sous-requête corrélée).
+
+```sql
+SELECT  e.nom, e.prenom
+FROM    Employe e
+WHERE   EXISTS (SELECT 1 FROM DemandeConge dc
+                WHERE dc.id_employe = e.id_employe AND dc.statut_demande = 'validee')
+ORDER BY e.nom;
+```
+
+**R14 — Employés n'ayant jamais déposé de demande.** *Approche :* `NOT EXISTS` (sous-requête corrélée) — le miroir de R13.
+
+```sql
+SELECT  e.nom, e.prenom
+FROM    Employe e
+WHERE   NOT EXISTS (SELECT 1 FROM DemandeConge dc WHERE dc.id_employe = e.id_employe)
+ORDER BY e.nom;
+```
+
+**R15 — Employés ayant pris plus de CP que la moyenne de leur service.** *Approche :* **sous-requête corrélée** dont le filtre dépend du service de la ligne courante (`e2.id_service = e.id_service`).
+
+```sql
+SELECT  CONCAT_WS(' ', e.prenom, e.nom) AS employe, s.libelle AS service,
+        sc.jours_pris AS cp_pris
+FROM    Employe e
+JOIN    Service s     ON s.id_service = e.id_service
+JOIN    SoldeConge sc ON sc.id_employe = e.id_employe
+JOIN    StatutJour sj ON sj.id_statut  = sc.id_statut
+WHERE   sj.code = 'CP'
+  AND   sc.jours_pris > (
+            SELECT AVG(sc2.jours_pris)
+            FROM   Employe e2
+            JOIN   SoldeConge sc2 ON sc2.id_employe = e2.id_employe
+            JOIN   StatutJour sj2 ON sj2.id_statut  = sc2.id_statut
+            WHERE  sj2.code = 'CP' AND e2.id_service = e.id_service)
+ORDER BY service, cp_pris DESC;
+```
+
+### 7.5 Vue de consolidation — `v_demandes_completes`
+
+Au-delà des quinze requêtes, le schéma définit une **vue** réutilisable. Elle est créée dans le script de création (`script_creation.sql`, ainsi que dans le fichier dédié `sql/09_vues.sql`), aux côtés des tables et des triggers, car elle fait partie intégrante de la structure de la base. Les jointures « demande → demandeur → service → type → valideur » et le calcul du nombre de jours reviennent en effet dans presque toutes les requêtes (R1, R4, R6, R10) **et** dans l'application Flask (routes `/` et `/conges/<id>`). La vue factorise cette logique une fois pour toutes :
+
+```sql
+CREATE OR REPLACE VIEW v_demandes_completes AS
+SELECT  dc.id_demande, dc.date_debut, dc.date_fin, dc.demi_journee_debut,
+        dc.statut_demande, dc.date_soumission, dc.motif,
+        CONCAT_WS(' ', e.prenom, e.nom) AS demandeur,
+        s.libelle  AS service,
+        sj.code    AS code_type,
+        sj.libelle AS type_conge,
+        CONCAT_WS(' ', v.prenom, v.nom) AS valideur,
+        CASE WHEN dc.demi_journee_debut IN ('matin','apres-midi') THEN 0.5
+             ELSE DATEDIFF(dc.date_fin, dc.date_debut) + 1 END AS nb_jours
+FROM    DemandeConge dc
+JOIN    Employe e     ON e.id_employe = dc.id_employe
+JOIN    Service s     ON s.id_service = e.id_service
+JOIN    StatutJour sj ON sj.id_statut = dc.id_statut
+LEFT JOIN Employe v   ON v.id_employe = dc.id_manager_valideur;
+```
+
+Une fois la vue créée, son interrogation est triviale : `requetes.sql` se contente d'un `SELECT` sur la vue pour produire un tableau de bord des congés validés, sans la moindre jointure à réécrire :
+
+```sql
+SELECT  demandeur, service, type_conge, nb_jours, valideur
+FROM    v_demandes_completes
+WHERE   statut_demande = 'validee'
+ORDER BY nb_jours DESC, demandeur;
+```
+
+L'intérêt est triple : **lisibilité** (les interrogations métier deviennent triviales), **maintenabilité** (le calcul des jours ou le format du demandeur ne sont définis qu'à un seul endroit) et **cohérence** (toutes les vues métier reposent sur la même définition).
 
 ---
 ---

@@ -18,5 +18,6 @@ SOURCE 05_demandeconge.sql;
 SOURCE 06_soldeconge.sql;
 SOURCE 08_triggers.sql;
 SOURCE 07_data.sql;
+SOURCE 09_vues.sql;
 
 SHOW TABLES;

@@ -252,3 +252,17 @@ WHERE   sj.code = 'CP'
               AND  e2.id_service = e.id_service
         )
 ORDER BY service, cp_pris DESC;
+
+
+
+
+-- Exemple d'utilisation de la vue : tableau de bord des demandes validées,
+-- avec le nombre de jours décomptés, sans réécrire la moindre jointure.
+SELECT  demandeur,
+        service,
+        type_conge,
+        nb_jours,
+        valideur
+FROM    v_demandes_completes
+WHERE   statut_demande = 'validee'
+ORDER BY nb_jours DESC, demandeur;
