@@ -743,8 +743,6 @@ L'application ne comporte pas d'authentification réelle (l'utilisateur courant 
 
 Plusieurs pistes prolongeraient le projet : ajouter une **authentification** et une gestion des rôles (employé / manager / RH) ; intégrer un **calendrier des jours fériés** pour fiabiliser le décompte ; déplacer la génération des entrées de planning dans une **procédure stockée** déclenchée à la validation ; et ajouter des **notifications** lors de la soumission ou de la validation d'une demande.
 
-*[Chaque membre peut compléter cette section avec le recul propre à sa partie.]*
-
 ---
 
 ## 7. Annexes et livrables
@@ -759,8 +757,7 @@ Plusieurs pistes prolongeraient le projet : ajouter une **authentification** et 
 | `sql/` | DDL éclaté, un fichier par table + `run_all.sql` | SQL |
 | `src/` | Code source de l'application Flask | Python / HTML |
 | `README.md` | Instructions de lancement, domaine, règles, dictionnaire | Texte |
-| `MCD.mermaid`, `mcd.md`, `MLD.md`, `dictionnaire.md` | Artefacts de modélisation | Markdown |
-| `BENHADDYA_BADOZ_AZDAD_ProjetBDD_Video` | Vidéo de présentation (12 min max) | Panopto |
+| `MCD.png`, `mcd.md`, `MLD.md`, `dictionnaire.md` | Artefacts de modélisation | Markdown |
 
 ### Instructions de lancement (résumé)
 
