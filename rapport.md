@@ -675,7 +675,8 @@ L'intérêt est triple : **lisibilité** (les interrogations métier deviennent 
   ÉTAT DES CRITÈRES (vérifié sur le code au 2026-05-31) :
   [x] Architecture de l'application + connexion à MySQL
       -> src/db.py (mysql.connector + python-dotenv/.env), app Flask 3 couches
-         (routage app.py / accès données db.py / présentation templates)
+         (routage app.py + routes/ une vue par fichier + helpers.py /
+          accès données db.py / présentation templates)
   [x] Fonctionnalités du menu :
       [x] Ajouter un enregistrement
           -> /reserver POST (INSERT INTO DemandeConge)
@@ -707,7 +708,7 @@ L'intérêt est triple : **lisibilité** (les interrogations métier deviennent 
 
 L'application suit une architecture en trois couches :
 
-- **Routage (app.py)** : dix routes [Flask](https://flask.palletsprojects.com/en/stable/quickstart/) couvrent toutes les opérations CRUD sur `DemandeConge`, plus deux vues de consultation (calendrier, statistiques). Chaque route délègue les accès base à `db.py` et renvoie un template [Jinja2](https://jinja.palletsprojects.com/en/stable/templates/).
+- **Routage (`app.py` + `routes/`)** : dix routes [Flask](https://flask.palletsprojects.com/en/stable/quickstart/) couvrent toutes les opérations CRUD sur `DemandeConge`, plus deux vues de consultation (calendrier, statistiques). Chaque vue vit dans son propre fichier sous `routes/` ; `app.py` se limite à l'assemblage (création de l'application, `context_processor`, branchement des URL via `add_url_rule`). La logique transverse (utilisateur courant, parsing de formulaire, calcul du nombre de jours) est factorisée dans `helpers.py`. Chaque route délègue les accès base à `db.py` et renvoie un template [Jinja2](https://jinja.palletsprojects.com/en/stable/templates/).
 - **Accès données (db.py)** : deux helpers (`query()` pour les SELECT, `execute()` pour les INSERT/UPDATE/DELETE) encapsulent la connexion MySQL. Les requêtes sont systématiquement paramétrées — aucune concaténation de chaîne SQL — ce qui élimine le risque d'injection SQL.
 - **Présentation (templates/)** : templates Jinja2 + Bootstrap 5 partageant un layout commun (`base.html`). La navbar injecte automatiquement l'utilisateur courant via un [`context_processor`](https://flask.palletsprojects.com/en/stable/templating/#context-processors).
 
@@ -736,13 +737,13 @@ L'entité principale du CRUD est `DemandeConge`. Les huit fonctionnalités de l'
 
 **Corrections de qualité appliquées en cours de développement :**
 
-**Vérification d'appartenance (IDOR).** Les routes `conge_modifier` et `conge_annuler` comparent désormais `demande["id_employe"]` avec `_current_user_id()` et appellent `abort(403)` en cas de discordance. Sans ce contrôle, un utilisateur pouvait modifier ou supprimer la demande de n'importe qui en devinant l'entier `id_demande` dans l'URL — faille classique de type *Insecure Direct Object Reference*. Dans `conge_annuler`, le SELECT préalable a également été ajouté (la route supprimait directement sans même charger l'enregistrement).
+**Vérification d'appartenance (IDOR).** Les routes `conge_modifier` et `conge_annuler` comparent désormais `demande["id_employe"]` avec `current_user_id()` et appellent `abort(403)` en cas de discordance. Sans ce contrôle, un utilisateur pouvait modifier ou supprimer la demande de n'importe qui en devinant l'entier `id_demande` dans l'URL — faille classique de type *Insecure Direct Object Reference*. Dans `conge_annuler`, le SELECT préalable a également été ajouté (la route supprimait directement sans même charger l'enregistrement).
 
 **Mode debug contrôlé par variable d'environnement.** `app.run(debug=True)` était codé en dur. Remplacé par `debug=os.getenv("FLASK_DEBUG", "0") == "1"` : le mode debug est désactivé par défaut et ne s'active qu'en posant `FLASK_DEBUG=1` dans `.env`. En mode debug actif, Werkzeug expose une console Python interactive dans le navigateur, permettant l'exécution de code arbitraire.
 
-**Masquage des erreurs base.** Les blocs `except` flashaient `str(exc)` directement vers le template, exposant noms de tables et de contraintes MySQL. Désormais l'exception est loggée côté serveur (`app.logger.error(exc)`) et le template reçoit un message générique. Pour `conge_valider`, le message reste domaine-métier : *"Solde insuffisant ou contrainte violée — validation refusée."*
+**Masquage des erreurs base.** Les blocs `except` flashaient `str(exc)` directement vers le template, exposant noms de tables et de contraintes MySQL. Désormais l'exception est loggée côté serveur (`current_app.logger.error(exc)`) et le template reçoit un message générique. Pour `conge_valider`, le message reste domaine-métier : *"Solde insuffisant ou contrainte violée — validation refusée."*
 
-**Cache de l'utilisateur courant dans `flask.g`.** `_current_user_id()` était appelé plusieurs fois par requête (via `context_processor` + vues individuelles), provoquant des accès session/base redondants. La valeur est stockée dans `g.current_user_id` dès le premier appel et réutilisée pour le reste du cycle de vie de la requête, conformément au [pattern Flask standard](https://flask.palletsprojects.com/en/stable/appcontext/#storing-data).
+**Cache de l'utilisateur courant dans `flask.g`.** `current_user_id()` était appelé plusieurs fois par requête (via `context_processor` + vues individuelles), provoquant des accès session/base redondants. La valeur est stockée dans `g.current_user_id` dès le premier appel et réutilisée pour le reste du cycle de vie de la requête, conformément au [pattern Flask standard](https://flask.palletsprojects.com/en/stable/appcontext/#storing-data).
 
 ---
 ---
@@ -777,7 +778,7 @@ Plusieurs pistes prolongeraient le projet : ajouter une **authentification** et 
 | `sql/` | DDL éclaté, un fichier par table + `run_all.sql` | SQL |
 | `src/` | Code source de l'application Flask | Python / HTML |
 | `README.md` | Instructions de lancement, domaine, règles, dictionnaire | Texte |
-| `MCD.mermaid`, `mcd.md`, `MLD.txt`, `dictionnaire.md` | Artefacts de modélisation | Markdown / texte |
+| `MCD.mermaid`, `mcd.md`, `MLD.md`, `dictionnaire.md` | Artefacts de modélisation | Markdown |
 | `BENHADDYA_BADOZ_AZDAD_ProjetBDD_Video` | Vidéo de présentation (12 min max) | Panopto |
 
 ### Instructions de lancement (résumé)

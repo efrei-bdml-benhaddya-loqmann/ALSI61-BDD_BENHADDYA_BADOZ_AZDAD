@@ -1,4 +1,4 @@
-# Réservation de congés — Projet BDD ALSI61
+# MyEfrei Congés - Réservation de congés - Projet BDD ALSI61
 
 Application web de réservation de congés adossée à une base MySQL.
 Un employé réserve, modifie et annule ses demandes de congé ; son manager les valide ou les refuse ; la validation décompte automatiquement le solde.
@@ -54,13 +54,16 @@ Ouvrir http://localhost:5000
 ├── requetes.sql          # 15 requêtes R1–R15
 ├── sql/                  # DDL éclaté, un fichier par table + run_all.sql
 ├── src/
-│   ├── app.py            # routes Flask
-│   ├── db.py             # connexion MySQL + helpers
+│   ├── app.py            # assemblage : factory + context_processor + routage
+│   ├── db.py             # connexion MySQL + helpers query()/execute()
+│   ├── helpers.py        # logique partagée (utilisateur courant, parsing, calculs)
+│   ├── routes/           # une vue Flask par fichier (mes_conges, conge_*, calendrier, stats…)
 │   ├── requirements.txt
 │   ├── .env.example
+│   ├── static/           # feuille de style (design tokens)
 │   └── templates/        # vues Jinja2 + Bootstrap
 ├── MCD.mermaid           # modèle conceptuel
-├── MLD.txt               # modèle logique
+├── MLD.md                # modèle logique
 └── dictionnaire.md       # dictionnaire de données
 ```
 
